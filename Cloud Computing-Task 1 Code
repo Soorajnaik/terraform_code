@@ -1,0 +1,172 @@
+// TASK 1
+// I will be posting each and every step that I took while the coding of the task
+aws configure --profile Sanya
+              AWS Access Key ID [****************WO3Z]:
+              AWS Secret Access Key [****************b/hJ]:
+              Default region name [ap-south-1]:
+              Default output format [None]:
+              
+              provider  "aws" {
+        region   = "ap-south-1"
+        profile  = "Sanya"
+      }
+
+      resource "aws_instance" "test_ins" {
+        ami             =  "ami-052c08d70def0ac62"
+        instance_type   =  "t2.micro"
+        key_name        =  "newk11"
+        security_groups =  [ "launch-wizard-1" ]
+
+       connection {
+          type     = "ssh"
+          user     = "ec2-user"
+          private_key = file("C:/Users/AAAA/Downloads/newk11.pem")
+          host     = aws_instance.test_ins.public_ip
+        }
+
+        provisioner "remote-exec" {
+          inline = [
+            "sudo yum install httpd  php git -y",
+            "sudo systemctl restart httpd",
+            "sudo systemctl enable httpd",
+            "sudo setenforce 0"
+          ]
+        }
+
+        tags = {
+          Name = "my_os"
+        }
+      }
+      
+      resource "aws_ebs_volume" "my_vol" {
+        availability_zone  =  aws_instance.test_ins.availability_zone
+        size               =  1
+
+        tags = {
+          Name = "my_ebs"
+        }
+      }
+      
+      resource "aws_volume_attachment"  "ebs_att" {
+        device_name  = "/dev/sdd"
+        volume_id    = "${aws_ebs_volume.my_vol.id}"
+        instance_id  = "${aws_instance.test_ins.id}"
+        force_detach =  true
+      }
+      
+      resource "null_resource" "ip_store"  {
+        provisioner "local-exec" {
+            command = "echo  ${aws_instance.test_ins.public_ip} > public_ip.txt"
+          }
+      }
+      
+      resource "null_resource" "mount"  {
+
+    depends_on = [
+        aws_volume_attachment.ebs_att,
+      ]
+
+
+      connection {
+        type     = "ssh"
+        user     = "ec2-user"
+        private_key = file("C:/Users/AAAA/Downloads/newk11.pem")
+        host     = aws_instance.test_ins.public_ip
+      }
+
+    provisioner "remote-exec" {
+        inline = [
+          "sudo mkfs.ext4  /dev/xvdd",
+          "sudo mount  /dev/xvdd  /var/www/html",
+          "sudo rm -rf /var/www/html/*",
+          "sudo git clone https://https://github.com/SanyaRaghuwanshi18/Hybrid-Multi-Cloud-Computing_Sanya-Raghuwanshi/new/master/var/www/html/"
+        ]
+      }
+    }
+    
+    resource "null_resource" "git_copy"  {
+      provisioner "local-exec" {
+        command = "git clone https://github.com/SanyaRaghuwanshi18/Hybrid-Multi-Cloud-Computing_Sanya-Raghuwanshi/new/master C:/Users/AAAA/Pictures/" 
+        }
+    }
+         
+        resource "aws_s3_bucket" "sp_bucket" {
+        bucket = "sanya18"
+        acl    = "private"
+        
+         resource "aws_s3_bucket_object" "object" {
+          bucket = "${aws_s3_bucket.sp_bucket.id}"
+          key    = "test_pic"
+          source = "C:/Users/AAAA/Pictures/pic1.png"
+          acl    = "public-read"
+        }
+
+        tags = {
+          Name        = "sanya1802"
+        }
+      }
+       locals {
+          s3_origin_id = "myS3Origin"
+        }
+        
+        resource "aws_cloudfront_distribution" "my_front" {
+         origin {
+               domain_name = "${aws_s3_bucket.sp_bucket.bucket_regional_domain_name}"
+               origin_id   = "${local.s3_origin_id}"
+
+       custom_origin_config {
+
+               http_port = 80
+               https_port = 80
+               origin_protocol_policy = "match-viewer"
+               origin_ssl_protocols = ["TLSv1", "TLSv1.1", "TLSv1.2"] 
+              }
+            }
+               enabled = true
+
+       default_cache_behavior {
+
+               allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+               cached_methods   = ["GET", "HEAD"]
+               target_origin_id = "${local.s3_origin_id}"
+
+       forwarded_values {
+
+             query_string = false
+
+       cookies {
+                forward = "none"
+               }
+          }
+
+                viewer_protocol_policy = "allow-all"
+                min_ttl                = 0
+                default_ttl            = 3600
+                max_ttl                = 86400
+
+      }
+        restrictions {
+               geo_restriction {
+                 restriction_type = "none"
+                }
+           }
+       viewer_certificate {
+             cloudfront_default_certificate = true
+             }
+      }
+      
+      resource "null_resource" "local_exec"  {
+
+
+        depends_on = [
+            null_resource.mount,
+          ]
+
+          provisioner "local-exec" {
+              command = "start chrome  ${aws_instance.test_ins.public_ip}"
+                 }
+        }
+        
+        // END OF CODE
+        
+              
